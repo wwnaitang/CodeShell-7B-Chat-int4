@@ -11,9 +11,10 @@ tags:
 
 # CodeShell
 
-CodeShell是[北京大学知识计算实验室](http://se.pku.edu.cn/kcl/)联合四川天府银行AI团队研发的多语言代码大模型基座。CodeShell具有70亿参数，在五千亿Tokens进行了训练，上下文窗口长度为8194。在权威的代码评估Benchmark（HumanEval与MBPP）上，CodeShell取得同等规模最好的性能。与此同时，我们提供了与CodeShell配套的部署方案与IDE插件，请参考代码库[CodeShell](https://github.com/WisdomShell/codeshell)。
+CodeShell是[北京大学知识计算实验室](http://se.pku.edu.cn/kcl/)联合四川天府银行AI团队研发的多语言代码大模型基座。CodeShell具有70亿参数，在五千亿Tokens进行了训练，上下文窗口长度为8194。在权威的代码评估Benchmark（HumanEval与MBPP）上，CodeShell取得同等规模最好的性能。与此同时，我们提供了与CodeShell配套的部署方案与IDE插件，请参考代码库[CodeShell](https://github.com/WisdomShell/codeshell)。本仓库为CodeShell-7B-Chat的Int4量化模型的仓库。
 
-CodeShell is a multi-language code LLM developed by the [Knowledge Computing Lab](http://se.pku.edu.cn/kcl/) of Peking University. CodeShell has 7 billion parameters and was trained on 500 billion tokens with a context window length of 8194. On authoritative code evaluation benchmarks (HumanEval and MBPP), CodeShell achieves the best performance of its scale. Meanwhile, we provide deployment solutions and IDE plugins that complement CodeShell. Please refer to the [CodeShell code repository](https://github.com/WisdomShell/codeshell) for more details."
+CodeShell is a multi-language code LLM developed by the [Knowledge Computing Lab](http://se.pku.edu.cn/kcl/) of Peking University. CodeShell has 7 billion parameters and was trained on 500 billion tokens with a context window length of 8194. On authoritative code evaluation benchmarks (HumanEval and MBPP), CodeShell achieves the best performance of its scale. Meanwhile, we provide deployment solutions and IDE plugins that complement CodeShell. Please refer to the [CodeShell code repository](https://github.com/WisdomShell/codeshell) for more details. This repository is for the Int4 quantized model of CodeShell-7B-Chat.
+
 
 ## Main Characteristics of CodeShell
 
