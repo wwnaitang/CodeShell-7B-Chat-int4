@@ -32,33 +32,35 @@ CodeShell is a multi-language code LLM developed by the [Knowledge Computing Lab
 
 ## Quickstart
 
-### Code Generation
+CodeShell-7B-Chat量化版本 提供了Hugging Face格式的模型，开发者可以通过下列代码加载并使用。
 
-Codeshell 提供了Hugging Face格式的模型，开发者可以通过下列代码加载并使用。
-
-Codeshell offers a model in the Hugging Face format. Developers can load and use it with the following code.
+CodeShell-7B-Chat-int4 offers a model in the Hugging Face format. Developers can load and use it with the following code.
 
 ```python
+import time
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-tokenizer = AutoTokenizer.from_pretrained("codeshell", trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained("codeshell", trust_remote_code=True).cuda()
-inputs = tokenizer('def print_hello_world():', return_tensors='pt').cuda()
-outputs = model.generate(inputs)
-print(tokenizer.decode(outputs[0]))
+
+device = torch.device('cuda:0')
+model = AutoModelForCausalLM.from_pretrained('WisdomShell/CodeShell-7B-Chat-int4', trust_remote_code=True).to(device)
+tokenizer = AutoTokenizer.from_pretrained('WisdomShell/CodeShell-7B-Chat-int4')
+
+history = []
+query = '你是谁?'
+response = model.chat(query, history, tokenizer)
+print(response)
+history.append((query, response))
+
+query = '用Python写一个HTTP server'
+response = model.chat(query, history, tokenizer)
+print(response)
+history.append((query, response))
 ```
 
-### Fill in the Moddle
+开发者也可以通过VS Code与JetBrains插件与CodeShell-7B-Chat量化版本交互，详情请参[VSCode插件仓库](https://github.com/WisdomShell/codeshell-vscode)与[IntelliJ插件仓库](https://github.com/WisdomShell/codeshell-intellij)。
 
-CodeShell 支持Fill-in-the-Middle模式，从而更好的支持软件开发过程。
+Developers can also interact with CodeShell-7B-Chat-int4 through VS Code and JetBrains plugins. For details, please refer to the [VSCode Plugin Repository](https://github.com/WisdomShell/codeshell-vscode) and [IntelliJ Plugin Repository](https://github.com/WisdomShell/codeshell-intellij).
 
-CodeShell supports the Fill-in-the-Middle mode, thereby better facilitating the software development process.
-
-```python
-input_text = "<fim_prefix>def print_hello_world():\n    <fim_suffix>\n    print('Hello world!')<fim_middle>"
-inputs = tokenizer(input_text, return_tensors='pt').cuda()
-outputs = model.generate(inputs)
-print(tokenizer.decode(outputs[0]))
 ```
 
 ## Model Details
