@@ -57,7 +57,7 @@ print(response)
 history.append((query, response))
 ```
 
-开发者也可以通过VS Code与JetBrains插件与CodeShell-7B-Chat量化版本交互，详情请参[VSCode插件仓库](https://github.com/WisdomShell/codeshell-vscode)与[IntelliJ插件仓库](https://github.com/WisdomShell/codeshell-intellij)。
+开发者也可以通过VS Code与JetBrains插件与CodeShell-7B-Chat量化版本交互，详情请参考[VSCode插件仓库](https://github.com/WisdomShell/codeshell-vscode)与[IntelliJ插件仓库](https://github.com/WisdomShell/codeshell-intellij)。
 
 Developers can also interact with CodeShell-7B-Chat-int4 through VS Code and JetBrains plugins. For details, please refer to the [VSCode Plugin Repository](https://github.com/WisdomShell/codeshell-vscode) and [IntelliJ Plugin Repository](https://github.com/WisdomShell/codeshell-intellij).
 
