@@ -32,14 +32,17 @@
 """PyTorch CodeShell model."""
 import os
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable
+from threading import Thread
+from queue import Queue
+
 
 import torch
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
-from transformers import PreTrainedModel, PretrainedConfig
+from transformers import LogitsProcessorList, StoppingCriteriaList, StoppingCriteria, PreTrainedModel, PretrainedConfig
 from transformers.generation.utils import GenerationConfig
 
 from transformers.activations import ACT2FN
@@ -53,7 +56,6 @@ from transformers.utils import (
     add_start_docstrings_to_model_forward,
 )
 from .configuration_codeshell import CodeShellConfig
-
 
 # Fused kernels
 # Use separate functions for each case because conditionals prevent kernel fusion.
@@ -743,6 +745,62 @@ class CodeShellModel(CodeShellPreTrainedModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
         )
+    
+class EndOfFunctionCriteria(StoppingCriteria):
+    """Custom `StoppingCriteria` which checks if all generated functions in the batch are completed."""
+    def __init__(self, input_lengths, eof_strings, tokenizer):
+        self.input_lengths = input_lengths
+        self.eof_strings = eof_strings
+        self.tokenizer = tokenizer
+
+    def __call__(self, input_ids, scores, **kwargs):
+        """Returns true if all generated sequences contain any of the end-of-function strings."""
+        decoded_generations = []
+        for _input_ids, input_length in zip(input_ids, self.input_lengths):
+            decoded_generations.append(self.tokenizer.decode(_input_ids[input_length:]))
+        done = []
+        for decoded_generation in decoded_generations:
+            done.append(
+                any(
+                    [
+                        stop_string in decoded_generation
+                        for stop_string in self.eof_strings
+                    ]
+                )
+            )
+        return all(done)
+
+class TextIterStreamer:
+    def __init__(self, tokenizer, skip_prompt=False, skip_special_tokens=False):
+        self.tokenizer = tokenizer
+        self.skip_prompt = skip_prompt
+        self.skip_special_tokens = skip_special_tokens
+        self.tokens = []
+        self.text_queue = Queue()
+        self.next_tokens_are_prompt = True
+
+    def put(self, value):
+        if self.skip_prompt and self.next_tokens_are_prompt:
+            self.next_tokens_are_prompt = False
+        else:
+            if len(value.shape) > 1:
+                value = value[0]
+            self.tokens.extend(value.tolist())
+            self.text_queue.put(
+                self.tokenizer.decode(self.tokens, skip_special_tokens=self.skip_special_tokens))
+
+    def end(self):
+        self.text_queue.put(None)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        value = self.text_queue.get()
+        if value is None:
+            raise StopIteration()
+        else:
+            return value
 
 
 @add_start_docstrings(
@@ -886,6 +944,65 @@ class CodeShellForCausalLM(CodeShellPreTrainedModel):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
             )
         return reordered_past
+    
+
+    def build_chat_input(self, query, history, tokenizer, max_new_tokens=None):
+        user_name = "\n## human:"
+        ai_name = "\n## assistant: "
+        stop = '|<end>|'
+
+        prompt = ''
+        for q, r in history:
+            prompt += f"{user_name}{q}{stop}"
+            prompt += f"{ai_name}{r}{stop}"
+        prompt += f"{user_name}{query}{stop}"
+        prompt += ai_name.rstrip()
+
+        max_new_tokens = max_new_tokens or self.generation_config.max_new_tokens
+        max_input_tokens = self.config.n_positions - max_new_tokens
+
+        input_tokens = tokenizer.encode(prompt)
+        input_tokens = input_tokens[-max_input_tokens:]  # truncate left
+        return torch.LongTensor([input_tokens]).to(self.device)
+
+    def chat(self, query, history, tokenizer, stream=False,
+            generation_config: Optional[GenerationConfig]=None):
+        generation_config = generation_config or self.generation_config
+        input_ids = self.build_chat_input(query, history, tokenizer, generation_config.max_new_tokens)
+        stopping_criteria = StoppingCriteriaList(
+            [EndOfFunctionCriteria([len(input_ids[0])], ['|<end>|', '<|endoftext|>'], tokenizer)]
+        )
+        
+        if stream:
+            streamer = TextIterStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+            Thread(target=self.generate, kwargs=dict(
+                inputs=input_ids, streamer=streamer,
+                stopping_criteria = stopping_criteria,
+                generation_config=generation_config,
+            )).start()
+            return streamer
+        else:
+            outputs = self.generate(input_ids, generation_config=generation_config, stopping_criteria = stopping_criteria)
+            response = tokenizer.decode(outputs[0][len(input_ids[0]):], skip_special_tokens=True)
+            return response
+        
+    def generate_stream(self, prompt, tokenizer, generation_config=None, **kwargs):
+        generation_config = generation_config or self.generation_config
+        max_input_tokens = self.config.n_positions - self.generation_config.max_new_tokens
+
+        input_ids = tokenizer.encode(prompt)
+        input_ids = input_ids[-max_input_tokens:]  # truncate left
+
+        stopping_criteria = StoppingCriteriaList(
+            [EndOfFunctionCriteria([len(input_ids[0])], ['|<end>|', '<|endoftext|>'], tokenizer)]
+        )
+
+        streamer = TextIterStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+        Thread(target=self.generate, kwargs=dict(
+            inputs=input_ids, stopping_criteria=stopping_criteria, **kwargs
+        )).start()
+        return streamer
+
 
 class CodeShell4bitForCausalLM(CodeShellForCausalLM):
     def __init__(self, config):
@@ -967,4 +1084,3 @@ class CodeShell4bitForCausalLM(CodeShellForCausalLM):
             model = model.to(torch.device(device_map))
         
         return model
-
